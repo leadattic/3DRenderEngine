@@ -4,11 +4,12 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using UnityEngine;
 using System;
+using System.Threading;
 
 public class Raycaster : MonoBehaviour
 {
-    public static int x_lim = 1280;
-    public static int y_lim = 720;
+    public static int x_lim = 260;
+    public static int y_lim = 144;
     public static float FOV = 100; // x FOV
     public static bool done = false;
     public static float x_gap;
@@ -18,7 +19,12 @@ public class Raycaster : MonoBehaviour
     public float shadowMultiplier;
     private Stopwatch stopwatch;
     public GameObject targetObject;
+    public Material reflectiveMaterial;
     List<Color> pixList;
+    private int iterationCount;
+    private Texture2D texture;
+    public GameObject parent;
+    public Material invicibleMat;
     private void Start()
     {
         pixList = new List<Color>();
@@ -35,28 +41,27 @@ public class Raycaster : MonoBehaviour
 
     private void Update()
     {
-        if (!done)
-        {
-            for (int i = 0; i < y_lim; i++)
-            {
-                for (int j = 0; j < x_lim; j++)
+       
+            
+                for (int i = 0; i < y_lim; i++)
                 {
-                    float angleY = startPosY + i * y_gap;
-                    float angleX = startPosX + j * x_gap;
-                    Vector3 direction = Quaternion.Euler(angleY, angleX, 0) * Vector3.forward;
-
-                    GetColorFromRaycast(direction, 1000000);
+                    for (int j = 0; j < x_lim; j++)
+                    {
+                        float angleY = startPosY + i * y_gap;
+                        float angleX = startPosX + j * x_gap;
+                        Vector3 direction = Quaternion.Euler(angleY, angleX + parent.transform.eulerAngles.y, 0) * Vector3.forward;
+                        GetColorFromRaycast(direction, 1000000);
+                    }
                 }
-            }
-            done = true;
-            UnityEngine.Debug.Log(stopwatch.ElapsedMilliseconds + " ms");
-            UnityEngine.Debug.Log(pixList.Count);
-            RenderImg(pixList, x_lim, y_lim, "C:\\Users\\Axelc\\Downloads\\renderImg.png");
-        }
-        
 
+
+                RenderImg(pixList, x_lim, y_lim, $"C:\\Users\\Axelc\\Downloads\\renderImg{(int) iterationCount}.png");
+                iterationCount++;
+                pixList.Clear();
+                UnityEngine.Debug.Log((stopwatch.ElapsedMilliseconds/iterationCount));
     }
-
+            
+   
 
     private void RenderImg(List<Color> pixels, int width, int height, string filePath)
     {
@@ -66,7 +71,7 @@ public class Raycaster : MonoBehaviour
             return;
         }
 
-        Texture2D texture = new Texture2D(width, height);
+        texture = new Texture2D(width, height);
 
         // Set the pixels from the list
         for (int i = 0; i < height; i++)
@@ -78,16 +83,7 @@ public class Raycaster : MonoBehaviour
             }
         }
 
-        texture.Apply(); // Apply changes to the texture
-
-        // Encode texture to PNG
-        byte[] bytes = texture.EncodeToPNG();
-        Destroy(texture); // Destroy the texture to free up memory
-
-        // Save PNG file
-        File.WriteAllBytes(filePath, bytes);
-
-        UnityEngine.Debug.Log($"Image saved to {filePath}");
+        texture.Apply(); 
     }
 
 
@@ -101,7 +97,30 @@ public class Raycaster : MonoBehaviour
             Renderer renderer = hit.collider.gameObject.GetComponent<Renderer>();
             if (renderer != null)
             {
-                Color hitColor = renderer.material.color;
+                Color hitColor;
+                if (renderer.material != invicibleMat)
+                {
+                    hitColor = renderer.material.color;
+                }
+                else
+                {
+                    RaycastHit[] hits = Physics.RaycastAll(transform.position, direction, distance);
+                    GameObject[] gameObjects = new GameObject[hits.length];
+                    for(int i = 0; i < hits.length; i++)
+                    {
+                        gameObjects[i] = hits[i].transform.gameObject;
+                    }
+                    GameObject hitObject = GetNextClosestObject(gameObjects);
+                    renderer = hitObject.collider.gameObject.GetComponent<Renderer>();
+                    if (renderer != null)
+                    {
+                        hitColor = renderer.material.color;
+                    }
+                    else
+                    {
+                        hitColor = Color.white;
+                    }
+                }
                 Vector3 hitPosition = hit.point;
                 Vector3 shadowDirection = (targetObject.transform.position - hitPosition).normalized;
                 Ray shadowRay = new Ray(hitPosition - shadowDirection * 0.01f, shadowDirection);
@@ -111,7 +130,6 @@ public class Raycaster : MonoBehaviour
                 {
                     if (shadowHit.collider.gameObject == targetObject)
                     {
-
                         pixList.Add(hitColor);
                     }
                     else
@@ -128,7 +146,7 @@ public class Raycaster : MonoBehaviour
         }
         else
         {
-            Color hitColor = Color.cyan;
+            Color hitColor =new Color(0.40234375f, 0.04296875f, 0.04296875f);
             pixList.Add(hitColor);
         }
     }
@@ -143,5 +161,36 @@ public class Raycaster : MonoBehaviour
         return new Color(color.r * shadowFactor, color.g * shadowFactor, color.b * shadowFactor, color.a);
     }
 
-}
+    void OnGUI()
+    {
 
+        Graphics.DrawTexture(new Rect(0, 0, x_lim, y_lim), texture);
+    }
+
+    public GameObject GetNextClosestObject(GameObject[] objects)
+    {
+        float closestDist = float.MaxValue;
+        float nextClosestDist = float.MaxValue;
+        GameObject closestObject = null;
+        GameObject nextClosestObject = null;
+
+        for (int i = 0; i < objects.Count; i++)  //list of gameObjects to search through
+        {
+            float dist = Vector3.Distance(objects[i].transform.position, player.transform.position);
+            if (dist < closestDist)
+            {
+                nextClosestDist = closestDist;
+                nextClosestObject = closestObject;
+                closestDist = dist;
+                closestObject = objects[i];
+            }
+            else if (dist < nextClosestDist)
+            {
+                nextClosestDist = dist;
+                nextClosestObject = objects[i];
+            }
+        }
+        return nextClosestObject;
+    }
+
+}
