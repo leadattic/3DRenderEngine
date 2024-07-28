@@ -94,6 +94,44 @@ public class Raycaster : MonoBehaviour
         RaycastHit hit;
         if (Physics.Raycast(transform.position, direction, out hit, distance))
         {
+            if(hit.transform.gameObject.tag == "Texture") 
+            {
+                Color hitColor;
+                Renderer renderer = hit.collider.GetComponent<Renderer>();
+            
+                if (renderer != null)
+                {
+                    // Get the main texture of the material
+                    Texture2D texture = renderer.material.mainTexture as Texture2D;
+                    int x = Mathf.FloorToInt(hit.textureCoord.x * texture.width);
+                    int y = Mathf.FloorToInt(hit.textureCoord.y * texture.height);
+                    hitColor = texture.GetPixel(x, y);
+                    Vector3 hitPosition = hit.point;
+                    Vector3 shadowDirection = (targetObject.transform.position - hitPosition).normalized;
+                    Ray shadowRay = new Ray(hitPosition - shadowDirection * 0.01f, shadowDirection);
+                    RaycastHit shadowHit;
+                    // UnityEngine.Debug.DrawRay(hitPosition, shadowDirection * 100, new Color(1f, 0, 0, 0.5f), 100);
+                    if (Physics.Raycast(shadowRay, out shadowHit))
+                    {
+                        if (shadowHit.collider.gameObject == targetObject)
+                        {
+                            pixList.Add(hitColor);
+                        }
+                        else
+                        {
+                            pixList.Add(CreateShadowEffect(hitColor, shadowMultiplier));
+                        }
+                    }
+                }
+                else
+                {
+                    hitColor = new Color(0f, 1f, 0f);
+                    pixList.Add(hitColor);
+                }
+            }
+            else
+            {
+                
             Renderer renderer = hit.collider.gameObject.GetComponent<Renderer>();
             if (renderer != null)
             {
@@ -105,13 +143,13 @@ public class Raycaster : MonoBehaviour
                 else
                 {
                     RaycastHit[] hits = Physics.RaycastAll(transform.position, direction, distance);
-                    GameObject[] gameObjects = new GameObject[hits.length];
-                    for(int i = 0; i < hits.length; i++)
+                    GameObject[] gameObjects = new GameObject[hits.Length];
+                    for(int i = 0; i < hits.Length; i++)
                     {
                         gameObjects[i] = hits[i].transform.gameObject;
                     }
                     GameObject hitObject = GetNextClosestObject(gameObjects);
-                    renderer = hitObject.collider.gameObject.GetComponent<Renderer>();
+                    renderer = hitObject.GetComponent<Collider>().gameObject.GetComponent<Renderer>();
                     if (renderer != null)
                     {
                         hitColor = renderer.material.color;
@@ -142,6 +180,7 @@ public class Raycaster : MonoBehaviour
                     UnityEngine.Debug.Log("Did not hit the sun nor any other GameObject. TF?");
                     pixList.Add(hitColor);
                 }
+            }
             }
         }
         else
@@ -174,9 +213,9 @@ public class Raycaster : MonoBehaviour
         GameObject closestObject = null;
         GameObject nextClosestObject = null;
 
-        for (int i = 0; i < objects.Count; i++)  //list of gameObjects to search through
+        for (int i = 0; i < objects.Length; i++)  //list of gameObjects to search through
         {
-            float dist = Vector3.Distance(objects[i].transform.position, player.transform.position);
+            float dist = Vector3.Distance(objects[i].transform.position, transform.position);
             if (dist < closestDist)
             {
                 nextClosestDist = closestDist;
